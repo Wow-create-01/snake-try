@@ -230,11 +230,21 @@
   const MIN_STEP_MS  = 70;           // 速度上限
   const SPEED_UP_MS  = 10;           // 每档提速幅度
 
+  // 每吃一颗果实长出一个障碍物。蛇头曼哈顿距离这个格数以内不生成 —— 否则怪物
+  // 可能贴脸出现，玩家根本没有反应时间，死得莫名其妙。
+  const OBSTACLE_SAFE_RADIUS = 3;
+
+  const DIRS4 = [[0, -1], [0, 1], [-1, 0], [1, 0]];
+
   const COLORS = {
     board:     '#0d1524',
     gridDot:   'rgba(148,163,184,0.075)',
     food:      '#fb7185',
-    foodGlow:  'rgba(251,113,133,0.55)'
+    foodGlow:  'rgba(251,113,133,0.55)',
+    // 障碍物：冷灰蓝，跟蛇的暖色系拉开距离
+    rockTop:   '#48597a',
+    rockBot:   '#232e46',
+    rockEdge:  'rgba(148,163,184,.30)'
   };
 
   // ============================================================
@@ -356,6 +366,7 @@
   let startedAt;    // 本局开始时间戳
   let deathAt;      // 死亡时间戳，用于闪红
   let effects;      // 吃食物的涟漪特效
+  let obstacles;    // [{x, y, born}] 每吃一颗果实长一个，整局累积
 
   let best = Number(store.read(BEST_KEY, 0)) || 0;
   bestEl.textContent = best;
@@ -366,6 +377,37 @@
   const levelOf = s => Math.floor(s / LEVEL_EVERY) + 1;
   const speedOf = s => Math.max(MIN_STEP_MS, BASE_STEP_MS - Math.floor(s / LEVEL_EVERY) * SPEED_UP_MS);
   const lerp    = (a, b, t) => a + (b - a) * t;
+  const okey    = (x, y) => x + ',' + y;          // 格子坐标 → Set 的 key
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = (Math.random() * (i + 1)) | 0;
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  /**
+   * 从 from 出发做一次 BFS，返回所有可达格子的 key 集合（blocked 里的格子视为墙）。
+   * 用来判断「新障碍物会不会把食物彻底封死」—— 封死了这局就变成无解了。
+   */
+  function reachableFrom(from, blocked) {
+    const seen = new Set([okey(from.x, from.y)]);
+    const queue = [from];
+    // 用下标出队而不是 shift()，避免 O(n²)
+    for (let i = 0; i < queue.length; i++) {
+      const c = queue[i];
+      for (const [dx, dy] of DIRS4) {
+        const nx = c.x + dx, ny = c.y + dy;
+        if (nx < 0 || nx >= COLS || ny < 0 || ny >= ROWS) continue;
+        const k = okey(nx, ny);
+        if (seen.has(k) || blocked.has(k)) continue;
+        seen.add(k);
+        queue.push({ x: nx, y: ny });
+      }
+    }
+    return seen;
+  }
 
   // ============================================================
   // 皮肤切换
@@ -423,6 +465,7 @@
     stepMs    = BASE_STEP_MS;
     acc       = 0;
     effects   = [];
+    obstacles = [];
     deathAt   = 0;
     startedAt = 0;
     sessionRecord = { score: 0, foods: 0, durationMs: 0, endedAt: null };
@@ -439,15 +482,61 @@
   }
 
   function spawnFood() {
-    const taken = new Set(snake.map(s => s.x + ',' + s.y));
+    const taken = new Set(snake.map(s => okey(s.x, s.y)));
+    for (const o of obstacles) taken.add(okey(o.x, o.y));
+
     const free = [];
     for (let y = 0; y < ROWS; y++)
       for (let x = 0; x < COLS; x++)
-        if (!taken.has(x + ',' + y)) free.push({ x, y });
+        if (!taken.has(okey(x, y))) free.push({ x, y });
 
-    // 没有空格子说明蛇填满了整个棋盘 —— 通关
+    // 没有空格子说明棋盘被填满了 —— 通关
     if (free.length === 0) { food = null; win(); return; }
     food = free[(Math.random() * free.length) | 0];
+  }
+
+  /**
+   * 吃掉果实后长出一个障碍物。有两条公平性约束，缺一个游戏就会变得让人恼火：
+   *   1. 不贴着蛇头生成 —— 否则怪物可能在 70ms 一步的速度下贴脸出现，纯随机暴毙
+   *   2. 不把食物彻底封死 —— 否则这局直接变成无解，玩家只能等死或重开
+   * 找不到合法位置时宁可不生成，也不破坏上面两条。
+   */
+  function spawnObstacle() {
+    const head = snake[0];
+
+    // occupied：不允许放障碍物的格子（蛇、已有障碍、食物）
+    // walls：   寻路时的墙。故意不含食物 —— 把食物也当墙的话，
+    //           它自己就永远"不可达"，下面那个检测会恒为假，障碍物一个也长不出来。
+    const occupied = new Set();
+    for (const s of snake) occupied.add(okey(s.x, s.y));
+    for (const o of obstacles) occupied.add(okey(o.x, o.y));
+
+    const walls = new Set(occupied);
+
+    const cands = [];
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        if (occupied.has(okey(x, y))) continue;
+        if (food && x === food.x && y === food.y) continue;
+        if (Math.abs(x - head.x) + Math.abs(y - head.y) <= OBSTACLE_SAFE_RADIUS) continue;
+        cands.push({ x, y });
+      }
+    }
+    if (!cands.length) return false;
+
+    // 打乱后取第一个「不封路」的位置。绝大多数情况下第一个就通过，
+    // 只有棋盘很拥挤时才会多试几个。
+    shuffle(cands);
+
+    for (const c of cands) {
+      const test = new Set(walls);
+      test.add(okey(c.x, c.y));
+      if (!food || reachableFrom(head, test).has(okey(food.x, food.y))) {
+        obstacles.push({ x: c.x, y: c.y, born: performance.now() });
+        return true;
+      }
+    }
+    return false;   // 所有位置都会封死食物，放弃这次生成
   }
 
   // ============================================================
@@ -526,7 +615,7 @@
       badge: isRecord && score > 0 ? '新纪录' : null,
       title,
       scoreText: String(score),
-      sub: `${sessionRecord.foods} 颗果实 · 用时 ${(sessionRecord.durationMs / 1000).toFixed(1)}s<br>${sub}`
+      sub: `${sessionRecord.foods} 颗果实 · ${obstacles.length} 个障碍 · 用时 ${(sessionRecord.durationMs / 1000).toFixed(1)}s<br>${sub}`
     });
   }
 
@@ -613,6 +702,9 @@
     // 撞墙
     if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return die();
 
+    // 撞障碍物
+    if (obstacles.some(o => o.x === head.x && o.y === head.y)) return die();
+
     const eating = food && head.x === food.x && head.y === food.y;
 
     // 撞自己：不吃食物时，尾巴那格本步会让开，所以可以进
@@ -633,7 +725,10 @@
       levelEl.textContent = String(levelOf(score));
       stepMs = speedOf(score);
 
+      // 顺序要紧：先放新食物，再长障碍物。
+      // spawnObstacle 会把食物格排除掉，而且它的封路检测也需要新食物已经就位。
       spawnFood();
+      if (state === 'playing') spawnObstacle();   // spawnFood 可能触发通关，那就不用长了
     } else {
       snake.pop();
     }
@@ -654,6 +749,57 @@
         ctx.arc((x + 0.5) * CELL, (y + 0.5) * CELL, 1.1, 0, Math.PI * 2);
         ctx.fill();
       }
+    }
+  }
+
+  /** 圆角矩形路径（不依赖 ctx.roundRect，避免旧浏览器不支持） */
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y,     x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x,     y + h, rr);
+    ctx.arcTo(x,     y + h, x,     y,     rr);
+    ctx.arcTo(x,     y,     x + w, y,     rr);
+    ctx.closePath();
+  }
+
+  /** 障碍物：冷灰蓝的圆角石块，生成时有个快速弹出的动画 */
+  function drawObstacles(now) {
+    const pad  = CELL * 0.12;
+    const full = CELL - pad * 2;
+    const r    = CELL * 0.17;
+
+    for (const o of obstacles) {
+      // 生成瞬间从 40% 弹到 100%，避免凭空出现的突兀感
+      const age   = Math.min((now - o.born) / 180, 1);
+      const grow  = 1 - Math.pow(1 - age, 3);        // easeOutCubic
+      const scale = 0.4 + 0.6 * grow;
+
+      const s = full * scale;
+      const x = (o.x + 0.5) * CELL - s / 2;
+      const y = (o.y + 0.5) * CELL - s / 2;
+
+      const g = ctx.createLinearGradient(x, y, x, y + s);
+      g.addColorStop(0, COLORS.rockTop);
+      g.addColorStop(1, COLORS.rockBot);
+
+      ctx.save();
+      ctx.fillStyle = g;
+      ctx.shadowColor = 'rgba(0,0,0,.55)';
+      ctx.shadowBlur = 7;
+      ctx.shadowOffsetY = 2;
+      roundRect(x, y, s, s, r * scale);
+      ctx.fill();
+      ctx.restore();
+
+      // 顶部描边高光，做出体积感
+      ctx.save();
+      ctx.strokeStyle = COLORS.rockEdge;
+      ctx.lineWidth = 1;
+      roundRect(x + 0.5, y + 0.5, s - 1, s - 1, r * scale);
+      ctx.stroke();
+      ctx.restore();
     }
   }
 
@@ -807,6 +953,7 @@
   function render(t, now) {
     ctx.clearRect(0, 0, SIZE, SIZE);
     drawBoard();
+    drawObstacles(now);
     drawFood(now);
     drawSnake(t, now);
     drawEffects(now);
