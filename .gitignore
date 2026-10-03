@@ -1,0 +1,23 @@
+# ---- 操作系统 ----
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# ---- 编辑器 ----
+.vscode/
+.idea/
+*.swp
+
+# ---- 后端（Roadmap 中的 Python + FastAPI + SQLite）----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+*.db
+*.sqlite3
+
+# ---- 前端（如果将来引入构建工具）----
+node_modules/
+dist/
+.vite/

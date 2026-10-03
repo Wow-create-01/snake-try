@@ -1,0 +1,852 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>贪吃蛇</title>
+<style>
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    background: radial-gradient(circle at 50% 0%, #16233a 0%, #0a0f1a 65%);
+    color: #e2e8f0;
+    font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .wrap { width: min(92vw, 62vh, 480px); }
+
+  /* ---------- 顶部计分栏 ---------- */
+  .hud {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    gap: 8px;
+    margin-bottom: 10px;
+    padding: 0 2px;
+  }
+  .stat { display: flex; flex-direction: column; gap: 2px; }
+  .stat:last-child { align-items: flex-end; }
+  .stat-label {
+    font-size: 11px;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    color: #64748b;
+  }
+  .stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.1;
+    color: #f1f5f9;
+  }
+  .stat-value.accent { color: #34d399; }
+
+  /* ---------- 棋盘 ---------- */
+  .stage {
+    position: relative;
+    border-radius: 18px;
+    overflow: hidden;
+    background: #0d1524;
+    box-shadow:
+      0 0 0 1px rgba(148, 163, 184, .12),
+      0 24px 60px -20px rgba(0, 0, 0, .8),
+      0 0 80px -30px rgba(52, 211, 153, .35);
+  }
+  canvas { display: block; width: 100%; aspect-ratio: 1; }
+
+  /* ---------- 遮罩层 ---------- */
+  .overlay {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    text-align: center;
+    background: rgba(8, 12, 20, .8);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+  [hidden] { display: none !important; }
+
+  .overlay-title {
+    margin: 0 0 8px;
+    font-size: 30px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    background: linear-gradient(180deg, #a7f3d0, #34d399 60%, #0d9488);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .overlay-sub {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.9;
+    color: #94a3b8;
+  }
+  .overlay-sub b { color: #e2e8f0; font-weight: 600; }
+  .final-score {
+    font-size: 46px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    color: #34d399;
+    margin: 4px 0 2px;
+    line-height: 1.1;
+  }
+  .badge {
+    display: inline-block;
+    margin-bottom: 10px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .1em;
+    color: #052e26;
+    background: linear-gradient(135deg, #6ee7b7, #34d399);
+  }
+
+  kbd {
+    padding: 1px 6px;
+    border-radius: 5px;
+    border: 1px solid #334155;
+    border-bottom-width: 2px;
+    background: #1e293b;
+    font: inherit;
+    font-size: 11px;
+    color: #cbd5e1;
+  }
+
+  .tip {
+    margin: 12px 0 0;
+    text-align: center;
+    font-size: 12px;
+    color: #475569;
+  }
+
+  /* ---------- 皮肤选择器 ---------- */
+  .skins {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+  .skin {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font: inherit;
+    color: #64748b;
+    transition: color .16s;
+  }
+  .skin:hover { color: #cbd5e1; }
+  .skin:focus-visible { outline: none; }
+  .skin:focus-visible .skin-dot { box-shadow: 0 0 0 2px #0a0f1a, 0 0 0 4px #64748b; }
+
+  .skin-dot {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    box-shadow:
+      0 0 0 1px rgba(148, 163, 184, .22),
+      inset 0 -4px 10px rgba(0, 0, 0, .45);
+    transition: transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .18s;
+  }
+  .skin[aria-checked="true"] { color: #e2e8f0; }
+  .skin[aria-checked="true"] .skin-dot {
+    transform: scale(1.14);
+    box-shadow:
+      0 0 0 2px #0a0f1a,
+      0 0 0 4px #34d399,
+      0 0 18px rgba(52, 211, 153, .45);
+  }
+  .skin-name { font-size: 11px; letter-spacing: .04em; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="hud">
+    <div class="stat">
+      <span class="stat-label">分数</span>
+      <span class="stat-value" id="score">0</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">速度</span>
+      <span class="stat-value" id="level">1</span>
+    </div>
+    <div class="stat">
+      <span class="stat-label">最高分</span>
+      <span class="stat-value accent" id="best">0</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <canvas id="game"></canvas>
+    <div class="overlay" id="overlay">
+      <div>
+        <div id="ovBadge" hidden class="badge">新纪录</div>
+        <h1 class="overlay-title" id="ovTitle">贪吃蛇</h1>
+        <div class="final-score" id="ovScore" hidden></div>
+        <p class="overlay-sub" id="ovSub"></p>
+      </div>
+    </div>
+  </div>
+
+  <div class="skins" id="skins" role="radiogroup" aria-label="蛇的皮肤"></div>
+
+  <p class="tip">方向键 / WASD 控制 · 空格暂停 · R 重开 · 数字键 1-5 换皮肤</p>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  // ============================================================
+  // 常量与棋盘设置
+  // ============================================================
+  const COLS = 20;
+  const ROWS = 20;
+  const CELL = 24;
+  const SIZE = COLS * CELL;          // 逻辑画布 480 x 480
+
+  const FOOD_SCORE   = 10;           // 每颗食物得分
+  const LEVEL_EVERY  = 50;           // 每多少分提速一档
+  const BASE_STEP_MS = 150;          // 初始每步耗时（越小越快）
+  const MIN_STEP_MS  = 70;           // 速度上限
+  const SPEED_UP_MS  = 10;           // 每档提速幅度
+
+  const COLORS = {
+    board:     '#0d1524',
+    gridDot:   'rgba(148,163,184,0.075)',
+    food:      '#fb7185',
+    foodGlow:  'rgba(251,113,133,0.55)'
+  };
+
+  // ============================================================
+  // 皮肤
+  //   每个皮肤是一份绘制参数：
+  //     palette(now)  沿身体从头到尾的颜色数组（可以随时间变化）
+  //     glow(now)     辉光颜色
+  //     width         身体线宽（相对 CELL）
+  //     headR         头部圆半径（相对 CELL）
+  //     glowBlur      辉光强度
+  //     alpha         整体透明度
+  //     dash          虚线节奏，null 表示连续
+  //     eyeFill/eyeGlow  眼睛颜色
+  // ============================================================
+  const SKINS = [
+    {
+      id: 'emerald', name: '翡翠',
+      palette: () => ['#6ee7b7', '#34d399', '#0d9488'],
+      glow: () => 'rgba(52,211,153,.45)',
+      width: 0.76, headR: 0.40, glowBlur: 14, alpha: 1, dash: null,
+      eyeFill: '#08131f', eyeGlow: null
+    },
+    {
+      id: 'neon', name: '霓虹',
+      palette: () => ['#a5f3fc', '#22d3ee', '#c026d3'],
+      glow: () => 'rgba(34,211,238,.85)',
+      width: 0.50, headR: 0.34, glowBlur: 28, alpha: 1, dash: null,
+      eyeFill: '#04121a', eyeGlow: null
+    },
+    {
+      id: 'magma', name: '岩浆',
+      palette: now => {
+        const p = 0.5 + 0.5 * Math.sin(now / 280);          // 呼吸脉动
+        return [
+          `hsl(${44 + p * 12}, 100%, ${68 + p * 10}%)`,     // 头：亮黄橙
+          `hsl(${20 + p * 8}, 100%, ${52 + p * 8}%)`,       // 中：橙
+          `hsl(356, 88%, ${26 + p * 8}%)`                   // 尾：暗红
+        ];
+      },
+      glow: now => `rgba(249,115,22,${0.45 + 0.28 * (0.5 + 0.5 * Math.sin(now / 280))})`,
+      width: 0.84, headR: 0.44, glowBlur: 26, alpha: 1, dash: null,
+      eyeFill: '#1a0600', eyeGlow: null
+    },
+    {
+      id: 'ghost', name: '幽灵',
+      palette: () => ['#f0f9ff', '#bae6fd', '#7dd3fc'],
+      glow: () => 'rgba(186,230,253,.40)',
+      width: 0.60, headR: 0.36, glowBlur: 8, alpha: 0.42,
+      dash: [CELL * 0.28, CELL * 0.24],                     // 断续，做出飘忽感
+      eyeFill: '#0c4a6e', eyeGlow: 'rgba(224,242,254,.9)'
+    },
+    {
+      id: 'rainbow', name: '彩虹',
+      palette: now => {
+        const base = now / 22;                              // 色相流动速度
+        return Array.from({ length: 7 },
+          (_, i) => `hsl(${(base + i * 52) % 360}, 88%, 62%)`);
+      },
+      glow: now => `hsla(${(now / 22) % 360}, 88%, 60%, .5)`,
+      width: 0.72, headR: 0.38, glowBlur: 20, alpha: 1, dash: null,
+      eyeFill: '#0b1220', eyeGlow: null
+    }
+  ];
+
+  const SKIN_KEY = 'snake.skin';
+  let skin = SKINS[0];
+
+  // ============================================================
+  // DOM
+  // ============================================================
+  const canvas   = document.getElementById('game');
+  const ctx      = canvas.getContext('2d');
+  const scoreEl  = document.getElementById('score');
+  const levelEl  = document.getElementById('level');
+  const bestEl   = document.getElementById('best');
+  const overlay  = document.getElementById('overlay');
+  const ovTitle  = document.getElementById('ovTitle');
+  const ovSub    = document.getElementById('ovSub');
+  const ovScore  = document.getElementById('ovScore');
+  const ovBadge  = document.getElementById('ovBadge');
+  const skinsEl  = document.getElementById('skins');
+
+  // HiDPI：放大物理像素，再把绘图坐标系缩回逻辑尺寸
+  const DPR = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width  = SIZE * DPR;
+  canvas.height = SIZE * DPR;
+  ctx.scale(DPR, DPR);
+
+  // ============================================================
+  // 存档层 —— 目前写 localStorage，将来换成后端 API 只动这里
+  // ============================================================
+  const store = {
+    read(key, fallback) {
+      try { const v = localStorage.getItem(key); return v === null ? fallback : v; }
+      catch { return fallback; }        // file:// 下隐私模式可能抛错
+    },
+    write(key, value) {
+      try { localStorage.setItem(key, value); } catch { /* 忽略 */ }
+    }
+  };
+
+  const BEST_KEY = 'snake.best';
+  // 运行时的"记录"对象，将来提交后端时直接序列化这个
+  let sessionRecord = { score: 0, foods: 0, durationMs: 0, endedAt: null };
+
+  // ============================================================
+  // 游戏状态
+  // ============================================================
+  let snake;        // [{x,y}]，snake[0] 是蛇头
+  let prevSnake;    // 上一步的位置，用于插值渲染
+  let dir;          // {x,y} 当前方向
+  let dirQueue;     // 输入缓冲，避免一个 tick 内连续转向导致掉头自杀
+  let food;         // {x,y}
+  let score;
+  let state;        // 'ready' | 'playing' | 'paused' | 'over'
+  let stepMs;       // 当前每步耗时
+  let acc;          // 步进累加器
+  let lastTime;
+  let startedAt;    // 本局开始时间戳
+  let deathAt;      // 死亡时间戳，用于闪红
+  let effects;      // 吃食物的涟漪特效
+
+  let best = Number(store.read(BEST_KEY, 0)) || 0;
+  bestEl.textContent = best;
+
+  // ============================================================
+  // 工具
+  // ============================================================
+  const levelOf = s => Math.floor(s / LEVEL_EVERY) + 1;
+  const speedOf = s => Math.max(MIN_STEP_MS, BASE_STEP_MS - Math.floor(s / LEVEL_EVERY) * SPEED_UP_MS);
+  const lerp    = (a, b, t) => a + (b - a) * t;
+
+  // ============================================================
+  // 皮肤切换
+  // ============================================================
+  function buildSkinPicker() {
+    skinsEl.innerHTML = '';
+
+    SKINS.forEach((s, i) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'skin';
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-checked', String(s.id === skin.id));
+      btn.title = `${s.name}（按 ${i + 1}）`;
+
+      const dot = document.createElement('span');
+      dot.className = 'skin-dot';
+      // 用皮肤自己的配色做色板预览
+      dot.style.background = `linear-gradient(135deg, ${s.palette(performance.now()).join(', ')})`;
+
+      const name = document.createElement('span');
+      name.className = 'skin-name';
+      name.textContent = s.name;
+
+      btn.append(dot, name);
+      btn.addEventListener('click', () => setSkin(s.id));
+      skinsEl.append(btn);
+    });
+  }
+
+  function setSkin(id) {
+    const next = SKINS.find(s => s.id === id);
+    if (!next || next === skin) return;
+
+    skin = next;
+    store.write(SKIN_KEY, id);
+
+    [...skinsEl.children].forEach((el, i) => {
+      el.setAttribute('aria-checked', String(SKINS[i].id === id));
+    });
+  }
+
+  // ============================================================
+  // 回合初始化
+  // ============================================================
+  function reset() {
+    const cy = Math.floor(ROWS / 2);
+    const cx = Math.floor(COLS / 2);
+
+    snake     = [{ x: cx, y: cy }, { x: cx - 1, y: cy }, { x: cx - 2, y: cy }];
+    prevSnake = snake.map(s => ({ ...s }));
+    dir       = { x: 1, y: 0 };
+    dirQueue  = [];
+    score     = 0;
+    stepMs    = BASE_STEP_MS;
+    acc       = 0;
+    effects   = [];
+    deathAt   = 0;
+    startedAt = 0;
+    sessionRecord = { score: 0, foods: 0, durationMs: 0, endedAt: null };
+
+    spawnFood();
+    state = 'ready';
+
+    scoreEl.textContent = '0';
+    levelEl.textContent = '1';
+    showOverlay({
+      title: '贪吃蛇',
+      sub: '按 <kbd>空格</kbd> 或 <kbd>方向键</kbd> 开始<br>吃掉红色果实，别撞墙也别咬到自己'
+    });
+  }
+
+  function spawnFood() {
+    const taken = new Set(snake.map(s => s.x + ',' + s.y));
+    const free = [];
+    for (let y = 0; y < ROWS; y++)
+      for (let x = 0; x < COLS; x++)
+        if (!taken.has(x + ',' + y)) free.push({ x, y });
+
+    // 没有空格子说明蛇填满了整个棋盘 —— 通关
+    if (free.length === 0) { food = null; win(); return; }
+    food = free[(Math.random() * free.length) | 0];
+  }
+
+  // ============================================================
+  // 遮罩层
+  // ============================================================
+  function showOverlay({ badge, title, scoreText, sub }) {
+    ovBadge.hidden = !badge;
+    if (badge) ovBadge.textContent = badge;
+
+    ovTitle.textContent = title;
+    ovTitle.hidden = !title;
+
+    ovScore.hidden = scoreText == null;
+    if (scoreText != null) ovScore.textContent = scoreText;
+
+    ovSub.innerHTML = sub || '';
+    overlay.hidden = false;
+  }
+
+  const hideOverlay = () => { overlay.hidden = true; };
+
+  // ============================================================
+  // 状态流转
+  // ============================================================
+  function start() {
+    if (state === 'playing') return;
+    if (state === 'over' || state === 'ready') reset();
+    state = 'playing';
+    acc = 0;
+    lastTime = performance.now();
+    if (!startedAt) startedAt = Date.now();
+    hideOverlay();
+  }
+
+  function togglePause() {
+    if (state === 'playing') {
+      state = 'paused';
+      showOverlay({ title: '已暂停', sub: '按 <kbd>空格</kbd> 继续 · <kbd>R</kbd> 重开' });
+    } else if (state === 'paused') {
+      state = 'playing';
+      acc = 0;
+      lastTime = performance.now();
+      hideOverlay();
+    }
+  }
+
+  function die() {
+    state = 'over';
+    deathAt = performance.now();
+    finishRound('游戏结束', '按 <kbd>空格</kbd> 或 <kbd>R</kbd> 再来一局');
+  }
+
+  function win() {
+    state = 'over';
+    deathAt = performance.now();
+    finishRound('通关！', '你把整个棋盘填满了 · 按 <kbd>R</kbd> 再来一局');
+  }
+
+  function finishRound(title, sub) {
+    // 让插值基准与当前位置对齐，否则死亡瞬间蛇会视觉上倒退一格
+    prevSnake = snake.map(s => ({ ...s }));
+
+    sessionRecord.score      = score;
+    sessionRecord.endedAt    = new Date().toISOString();
+    sessionRecord.durationMs = startedAt ? Date.now() - startedAt : 0;
+
+    const isRecord = score > best;
+    if (isRecord) {
+      best = score;
+      bestEl.textContent = best;
+      store.write(BEST_KEY, String(best));
+      // TODO: 接入后端后，这里改为 POST /api/games 提交 sessionRecord
+    }
+
+    showOverlay({
+      badge: isRecord && score > 0 ? '新纪录' : null,
+      title,
+      scoreText: String(score),
+      sub: `${sessionRecord.foods} 颗果实 · 用时 ${(sessionRecord.durationMs / 1000).toFixed(1)}s<br>${sub}`
+    });
+  }
+
+  // ============================================================
+  // 输入
+  // ============================================================
+  function pushDir(nx, ny) {
+    // 以"队列里最后一个待执行方向"为基准判断，防止快速连按导致掉头
+    const ref = dirQueue.length ? dirQueue[dirQueue.length - 1] : dir;
+    if (nx === ref.x && ny === ref.y) return;      // 同方向，忽略
+    if (nx === -ref.x && ny === -ref.y) return;    // 180° 掉头，非法
+    if (dirQueue.length >= 2) return;              // 缓冲上限，避免按键堆积
+    dirQueue.push({ x: nx, y: ny });
+  }
+
+  const KEYS = {
+    ArrowUp:    [0, -1], ArrowDown:  [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
+    w: [0, -1], s: [0, 1], a: [-1, 0], d: [1, 0],
+    W: [0, -1], S: [0, 1], A: [-1, 0], D: [1, 0]
+  };
+
+  window.addEventListener('keydown', e => {
+    if (e.repeat) return;
+
+    const key = e.key;
+
+    // 阻止方向键滚动页面
+    if (KEYS[key] || key === ' ' || key === 'Spacebar') e.preventDefault();
+
+    // 重开
+    if (key === 'r' || key === 'R') { reset(); return; }
+
+    // 换皮肤：1-5
+    if (key >= '1' && key <= '5') {
+      const s = SKINS[Number(key) - 1];
+      if (s) setSkin(s.id);
+      return;
+    }
+
+    // 暂停 / 开始
+    if (key === ' ' || key === 'Spacebar') {
+      if (state === 'ready' || state === 'over') start();
+      else togglePause();
+      return;
+    }
+
+    // 转向
+    const d = KEYS[key];
+    if (!d) return;
+    if (state === 'ready') start();
+    if (state === 'paused') togglePause();
+    if (state === 'playing') pushDir(d[0], d[1]);
+  });
+
+  // 触屏滑动
+  let touchStart = null;
+  canvas.addEventListener('touchstart', e => {
+    const t = e.changedTouches[0];
+    touchStart = { x: t.clientX, y: t.clientY };
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', e => {
+    if (state === 'ready' || state === 'over') { start(); touchStart = null; return; }
+    if (!touchStart) return;
+
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStart.x;
+    const dy = t.clientY - touchStart.y;
+    touchStart = null;
+
+    if (Math.hypot(dx, dy) < 24) return;           // 视为点击，不转向
+    if (Math.abs(dx) > Math.abs(dy)) pushDir(dx > 0 ? 1 : -1, 0);
+    else                             pushDir(0, dy > 0 ? 1 : -1);
+  }, { passive: true });
+
+  // ============================================================
+  // 单步推进
+  // ============================================================
+  function step() {
+    if (dirQueue.length) dir = dirQueue.shift();
+
+    const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+
+    // 撞墙
+    if (head.x < 0 || head.x >= COLS || head.y < 0 || head.y >= ROWS) return die();
+
+    const eating = food && head.x === food.x && head.y === food.y;
+
+    // 撞自己：不吃食物时，尾巴那格本步会让开，所以可以进
+    const body = eating ? snake : snake.slice(0, -1);
+    if (body.some(s => s.x === head.x && s.y === head.y)) return die();
+
+    // 记录移动前的位置，供插值渲染
+    prevSnake = snake.map(s => ({ ...s }));
+
+    snake.unshift(head);
+
+    if (eating) {
+      effects.push({ x: head.x, y: head.y, born: performance.now() });
+      score += FOOD_SCORE;
+      sessionRecord.foods += 1;
+
+      scoreEl.textContent = String(score);
+      levelEl.textContent = String(levelOf(score));
+      stepMs = speedOf(score);
+
+      spawnFood();
+    } else {
+      snake.pop();
+    }
+  }
+
+  // ============================================================
+  // 渲染
+  // ============================================================
+  /** 棋盘：底色 + 网格点 */
+  function drawBoard() {
+    ctx.fillStyle = COLORS.board;
+    ctx.fillRect(0, 0, SIZE, SIZE);
+
+    ctx.fillStyle = COLORS.gridDot;
+    for (let y = 0; y < ROWS; y++) {
+      for (let x = 0; x < COLS; x++) {
+        ctx.beginPath();
+        ctx.arc((x + 0.5) * CELL, (y + 0.5) * CELL, 1.1, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  /** 食物：脉动光晕 */
+  function drawFood(now) {
+    if (!food) return;
+
+    const cx = (food.x + 0.5) * CELL;
+    const cy = (food.y + 0.5) * CELL;
+    const pulse = 1 + Math.sin(now / 260) * 0.09;
+    const r = CELL * 0.30 * pulse;
+
+    ctx.save();
+    ctx.shadowColor = COLORS.foodGlow;
+    ctx.shadowBlur = 18;
+    ctx.fillStyle = COLORS.food;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // 高光
+    ctx.fillStyle = 'rgba(255,255,255,.55)';
+    ctx.beginPath();
+    ctx.arc(cx - r * 0.3, cy - r * 0.35, r * 0.26, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  /** 蛇：沿各节中心画一条圆角粗线，头部另画，外观全部由 skin 决定 */
+  function drawSnake(t, now) {
+    const dead = state === 'over';
+
+    // 插值出每节的像素坐标
+    const pts = snake.map((seg, i) => {
+      const p = prevSnake[i] || prevSnake[prevSnake.length - 1] || seg;
+      return {
+        x: (lerp(p.x, seg.x, t) + 0.5) * CELL,
+        y: (lerp(p.y, seg.y, t) + 0.5) * CELL
+      };
+    });
+
+    const head = pts[0];
+    const tail = pts[pts.length - 1];
+
+    // 外层 save 包住整个函数：死亡闪烁的 globalAlpha 必须在这里面被 restore 掉，
+    // 否则会泄漏到下一帧的棋盘和食物绘制上
+    ctx.save();
+
+    // 死亡时忽略皮肤配色，统一泛红闪烁
+    let cols, glowColor, dash = skin.dash;
+    let eyeFill = skin.eyeFill, eyeGlow = skin.eyeGlow;
+    const glowBlur = skin.glowBlur;
+
+    if (dead) {
+      const blink = 0.55 + 0.45 * Math.abs(Math.sin((now - deathAt) / 160));
+      ctx.globalAlpha = blink;
+      cols = ['#fda4af', '#fb7185', '#e11d48'];
+      glowColor = `rgba(251,113,133,${blink * 0.55})`;
+      dash = null;
+      eyeFill = '#4c0519';
+      eyeGlow = null;
+    } else {
+      ctx.globalAlpha = skin.alpha;
+      cols = skin.palette(now);
+      glowColor = skin.glow(now);
+    }
+
+    // ---- 身体 ----
+    // 头尾重合时渐变会退化，给个极小偏移兜底
+    let dx = tail.x - head.x, dy = tail.y - head.y;
+    if (Math.hypot(dx, dy) < 0.01) { dx = 0.01; dy = 0; }
+
+    const grad = ctx.createLinearGradient(head.x, head.y, head.x + dx, head.y + dy);
+    if (cols.length === 1) {
+      grad.addColorStop(0, cols[0]);
+      grad.addColorStop(1, cols[0]);
+    } else {
+      cols.forEach((c, i) => grad.addColorStop(i / (cols.length - 1), c));
+    }
+
+    ctx.save();
+    ctx.lineWidth = CELL * skin.width;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = grad;
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = glowBlur;
+    if (dash) ctx.setLineDash(dash);
+
+    ctx.beginPath();
+    ctx.moveTo(head.x, head.y);
+    if (pts.length === 1) {
+      ctx.lineTo(head.x + 0.01, head.y);      // 退化情况，画个点
+    } else {
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // ---- 头 ----
+    ctx.save();
+    ctx.fillStyle = cols[0];
+    ctx.shadowColor = glowColor;
+    ctx.shadowBlur = glowBlur * 0.7;
+    ctx.beginPath();
+    ctx.arc(head.x, head.y, CELL * skin.headR, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // ---- 眼睛（朝向当前方向）----
+    const eyeR = CELL * 0.105;
+    const fwd  = CELL * skin.headR * 0.42;
+    const side = CELL * skin.headR * 0.46;
+    const px = -dir.y, py = dir.x;            // 方向的垂直向量
+
+    ctx.save();
+    ctx.fillStyle = eyeFill;
+    if (eyeGlow) { ctx.shadowColor = eyeGlow; ctx.shadowBlur = 8; }
+    for (const s of [1, -1]) {
+      ctx.beginPath();
+      ctx.arc(head.x + dir.x * fwd + px * side * s,
+              head.y + dir.y * fwd + py * side * s,
+              eyeR, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+
+    ctx.restore();
+  }
+
+  /** 吃到食物时的扩散涟漪 */
+  function drawEffects(now) {
+    const LIFE = 420;
+    for (let i = effects.length - 1; i >= 0; i--) {
+      const fx = effects[i];
+      const age = (now - fx.born) / LIFE;
+      if (age >= 1) { effects.splice(i, 1); continue; }
+
+      const ease = 1 - Math.pow(1 - age, 3);
+      ctx.save();
+      ctx.globalAlpha = (1 - age) * 0.7;
+      ctx.strokeStyle = COLORS.food;
+      ctx.lineWidth = 3 * (1 - age);
+      ctx.beginPath();
+      ctx.arc((fx.x + 0.5) * CELL, (fx.y + 0.5) * CELL, CELL * 0.3 + ease * CELL * 1.1, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function render(t, now) {
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    drawBoard();
+    drawFood(now);
+    drawSnake(t, now);
+    drawEffects(now);
+  }
+
+  // ============================================================
+  // 主循环
+  // ============================================================
+  function loop(now) {
+    requestAnimationFrame(loop);
+
+    const dt = Math.min(now - lastTime, 250);   // 切后台回来时钳制，避免瞬移
+    lastTime = now;
+
+    if (state === 'playing') {
+      acc += dt;
+      while (acc >= stepMs && state === 'playing') {
+        acc -= stepMs;
+        step();
+      }
+    } else {
+      acc = 0;
+    }
+
+    // 插值系数：0 = 刚迈完一步，1 = 即将迈下一步
+    const t = state === 'playing' ? Math.min(acc / stepMs, 1) : 0;
+    render(t, now);
+  }
+
+  // ============================================================
+  // 启动
+  // ============================================================
+  // 恢复上次选的皮肤
+  const savedSkin = SKINS.find(s => s.id === store.read(SKIN_KEY, ''));
+  if (savedSkin) skin = savedSkin;
+
+  buildSkinPicker();
+  reset();
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
