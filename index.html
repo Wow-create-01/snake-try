@@ -21,19 +21,21 @@
     -webkit-tap-highlight-color: transparent;
   }
 
-  .wrap { width: min(92vw, 62vh, 480px); }
+  /* 皮肤搬进了设置面板、排行榜在宽屏下脱离文档流，纵向空间腾出来了，
+     所以棋盘可以比之前大一圈 */
+  .wrap { width: min(92vw, 70vh, 540px); }
 
   /* ---------- 顶部计分栏 ---------- */
   .hud {
     display: flex;
     justify-content: space-between;
     align-items: flex-end;
-    gap: 8px;
+    gap: 12px;
     margin-bottom: 10px;
     padding: 0 2px;
   }
+  .hud-stats { display: flex; gap: 26px; }
   .stat { display: flex; flex-direction: column; gap: 2px; }
-  .stat:last-child { align-items: flex-end; }
   .stat-label {
     font-size: 11px;
     letter-spacing: .12em;
@@ -48,6 +50,28 @@
     color: #f1f5f9;
   }
   .stat-value.accent { color: #34d399; }
+
+  /* ---------- 设置按钮 ---------- */
+  .gear {
+    appearance: none;
+    border: 0;
+    cursor: pointer;
+    flex: none;
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    display: grid;
+    place-items: center;
+    color: #94a3b8;
+    background: rgba(148, 163, 184, .10);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .14);
+    transition: color .15s, background .15s, transform .25s;
+  }
+  .gear:hover {
+    color: #e2e8f0;
+    background: rgba(148, 163, 184, .18);
+    transform: rotate(35deg);
+  }
 
   /* ---------- 棋盘 ---------- */
   .stage {
@@ -175,24 +199,230 @@
       0 0 18px rgba(52, 211, 153, .45);
   }
   .skin-name { font-size: 11px; letter-spacing: .04em; }
+
+  /* ---------- 排行榜 ---------- */
+  /* 宽屏下固定在视口右上角，不占文档流，页面高度就不会被它拉长 */
+  .board {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 10;
+    width: 208px;
+    padding: 12px 14px 10px;
+    border-radius: 14px;
+    background: rgba(13, 21, 36, .82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, .12),
+                0 18px 40px -18px rgba(0, 0, 0, .9);
+  }
+  .board-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .board-title {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .14em;
+    color: #94a3b8;
+  }
+  .board-clear {
+    appearance: none;
+    border: 0;
+    background: none;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font: inherit;
+    font-size: 11px;
+    color: #475569;
+    cursor: pointer;
+    transition: color .15s, background .15s;
+  }
+  .board-clear:hover { color: #f87171; background: rgba(248, 113, 113, .10); }
+
+  .board-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .board-row {
+    display: grid;
+    grid-template-columns: 20px 1fr auto;
+    align-items: baseline;
+    gap: 10px;
+    padding: 4px 7px;
+    border-radius: 7px;
+    transition: background .3s, box-shadow .3s;
+  }
+  .board-row .rank {
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #475569;
+  }
+  .board-row .score {
+    font-size: 13px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #e2e8f0;
+  }
+  .board-row .meta {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    color: #64748b;
+  }
+  /* 榜首金色 */
+  .board-row.top .rank,
+  .board-row.top .score { color: #fbbf24; }
+
+  /* 刚打完这一局，高亮到下一局开始 */
+  .board-row.fresh {
+    background: rgba(52, 211, 153, .14);
+    box-shadow: inset 0 0 0 1px rgba(52, 211, 153, .38);
+  }
+  .board-row.fresh .score { color: #6ee7b7; }
+
+  .board-empty {
+    padding: 10px 0 12px;
+    text-align: center;
+    font-size: 12px;
+    color: #475569;
+  }
+
+  /* 窄屏放不下右上角的浮层，让它落回文档流排在棋盘下面 */
+  @media (max-width: 860px) {
+    .wrap { width: min(92vw, 58vh, 460px); }
+    .board {
+      position: static;
+      width: auto;
+      margin-top: 16px;
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
+  /* ---------- 设置面板 ---------- */
+  .modal {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 20px;
+    background: rgba(6, 10, 18, .74);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  .modal-card {
+    width: min(100%, 380px);
+    padding: 18px 20px 20px;
+    border-radius: 18px;
+    background: #131c2e;
+    box-shadow: 0 0 0 1px rgba(148, 163, 184, .14),
+                0 30px 70px -20px rgba(0, 0, 0, .9);
+  }
+  .modal-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+  }
+  .modal-head h2 {
+    margin: 0;
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: .06em;
+    color: #e2e8f0;
+  }
+  .modal-close {
+    appearance: none;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 14px;
+    line-height: 1;
+    color: #64748b;
+    transition: color .15s, background .15s;
+  }
+  .modal-close:hover { color: #e2e8f0; background: rgba(148, 163, 184, .12); }
+
+  .field { margin-bottom: 18px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-label {
+    margin-bottom: 9px;
+    font-size: 11px;
+    letter-spacing: .14em;
+    color: #64748b;
+  }
+  /* 皮肤本来在棋盘下方，margin-top 是为那个位置留的，搬进面板后要归零 */
+  .field .skins { margin-top: 0; }
+
+  /* 分段控件：速度档位 */
+  .segmented {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+    padding: 3px;
+    border-radius: 11px;
+    background: rgba(9, 14, 24, .8);
+    box-shadow: inset 0 0 0 1px rgba(148, 163, 184, .10);
+  }
+  .seg {
+    appearance: none;
+    border: 0;
+    background: none;
+    cursor: pointer;
+    padding: 7px 0;
+    border-radius: 8px;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    color: #64748b;
+    transition: color .15s, background .15s;
+  }
+  .seg:hover { color: #cbd5e1; }
+  .seg[aria-checked="true"] {
+    color: #052e26;
+    background: linear-gradient(135deg, #6ee7b7, #34d399);
+  }
 </style>
 </head>
 <body>
 
 <div class="wrap">
   <div class="hud">
-    <div class="stat">
-      <span class="stat-label">分数</span>
-      <span class="stat-value" id="score">0</span>
+    <div class="hud-stats">
+      <div class="stat">
+        <span class="stat-label">分数</span>
+        <span class="stat-value" id="score">0</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">速度</span>
+        <span class="stat-value" id="level">1</span>
+      </div>
+      <div class="stat">
+        <span class="stat-label">最高分</span>
+        <span class="stat-value accent" id="best">0</span>
+      </div>
     </div>
-    <div class="stat">
-      <span class="stat-label">速度</span>
-      <span class="stat-value" id="level">1</span>
-    </div>
-    <div class="stat">
-      <span class="stat-label">最高分</span>
-      <span class="stat-value accent" id="best">0</span>
-    </div>
+
+    <button class="gear" id="gear" type="button" aria-label="设置" title="设置">
+      <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor"
+           stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+      </svg>
+    </button>
   </div>
 
   <div class="stage">
@@ -207,9 +437,35 @@
     </div>
   </div>
 
-  <div class="skins" id="skins" role="radiogroup" aria-label="蛇的皮肤"></div>
+  <section class="board">
+    <div class="board-head">
+      <h2 class="board-title">本机排行榜</h2>
+      <button class="board-clear" id="boardClear" type="button">清空</button>
+    </div>
+    <ol class="board-list" id="boardList"></ol>
+  </section>
 
   <p class="tip">方向键 / WASD 控制 · 空格暂停 · R 重开 · 数字键 1-5 换皮肤</p>
+</div>
+
+<!-- 设置面板 -->
+<div class="modal" id="settings" hidden>
+  <div class="modal-card" role="dialog" aria-modal="true" aria-label="设置">
+    <div class="modal-head">
+      <h2>设置</h2>
+      <button class="modal-close" id="settingsClose" type="button" aria-label="关闭">✕</button>
+    </div>
+
+    <div class="field">
+      <div class="field-label">速度</div>
+      <div class="segmented" id="speedSeg" role="radiogroup" aria-label="速度"></div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">皮肤</div>
+      <div class="skins" id="skins" role="radiogroup" aria-label="蛇的皮肤"></div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -224,11 +480,18 @@
   const CELL = 24;
   const SIZE = COLS * CELL;          // 逻辑画布 480 x 480
 
-  const FOOD_SCORE   = 10;           // 每颗食物得分
-  const LEVEL_EVERY  = 50;           // 每多少分提速一档
-  const BASE_STEP_MS = 150;          // 初始每步耗时（越小越快）
-  const MIN_STEP_MS  = 70;           // 速度上限
-  const SPEED_UP_MS  = 10;           // 每档提速幅度
+  const FOOD_SCORE  = 10;            // 每颗食物得分
+  const LEVEL_EVERY = 50;            // 每多少分提速一档
+  const SPEED_UP_MS = 10;            // 每档提速幅度（毫秒）
+
+  // 速度档位。base 是起始每步耗时，min 是速度上限；分数越高越接近 min。
+  // 「普通」这一档就是加设置之前的固定值，所以老玩家的手感不变。
+  const SPEED_PRESETS = [
+    { id: 'slow',   name: '慢',   base: 200, min: 115 },
+    { id: 'normal', name: '普通', base: 150, min: 70  },
+    { id: 'fast',   name: '快',   base: 112, min: 55  },
+    { id: 'insane', name: '极速', base: 84,  min: 44  }
+  ];
 
   // 每吃一颗果实长出一个障碍物。蛇头曼哈顿距离这个格数以内不生成 —— 否则怪物
   // 可能贴脸出现，玩家根本没有反应时间，死得莫名其妙。
@@ -309,7 +572,8 @@
     }
   ];
 
-  const SKIN_KEY = 'snake.skin';
+  const SKIN_KEY  = 'snake.skin';
+  const SPEED_KEY = 'snake.speed';
   let skin = SKINS[0];
 
   // ============================================================
@@ -326,6 +590,12 @@
   const ovScore  = document.getElementById('ovScore');
   const ovBadge  = document.getElementById('ovBadge');
   const skinsEl  = document.getElementById('skins');
+  const boardEl  = document.getElementById('boardList');
+  const clearEl  = document.getElementById('boardClear');
+  const gearEl   = document.getElementById('gear');
+  const settingsEl = document.getElementById('settings');
+  const closeEl  = document.getElementById('settingsClose');
+  const speedEl  = document.getElementById('speedSeg');
 
   // HiDPI：放大物理像素，再把绘图坐标系缩回逻辑尺寸
   const DPR = Math.min(window.devicePixelRatio || 1, 2);
@@ -346,7 +616,10 @@
     }
   };
 
-  const BEST_KEY = 'snake.best';
+  const BEST_KEY  = 'snake.best';
+  const BOARD_KEY = 'snake.board';
+  const BOARD_SIZE = 5;          // 只保留并显示前 5 名
+  const SCORE_MIN  = 1;          // 得分为 0 的局不入榜（开局直接撞死不该占格子）
   // 运行时的"记录"对象，将来提交后端时直接序列化这个
   let sessionRecord = { score: 0, foods: 0, durationMs: 0, endedAt: null };
 
@@ -367,6 +640,7 @@
   let deathAt;      // 死亡时间戳，用于闪红
   let effects;      // 吃食物的涟漪特效
   let obstacles;    // [{x, y, born}] 每吃一颗果实长一个，整局累积
+  let speedPreset = SPEED_PRESETS[1];   // 当前速度档位，默认「普通」
 
   let best = Number(store.read(BEST_KEY, 0)) || 0;
   bestEl.textContent = best;
@@ -375,7 +649,8 @@
   // 工具
   // ============================================================
   const levelOf = s => Math.floor(s / LEVEL_EVERY) + 1;
-  const speedOf = s => Math.max(MIN_STEP_MS, BASE_STEP_MS - Math.floor(s / LEVEL_EVERY) * SPEED_UP_MS);
+  const speedOf = s => Math.max(speedPreset.min,
+                               speedPreset.base - Math.floor(s / LEVEL_EVERY) * SPEED_UP_MS);
   const lerp    = (a, b, t) => a + (b - a) * t;
   const okey    = (x, y) => x + ',' + y;          // 格子坐标 → Set 的 key
 
@@ -408,6 +683,143 @@
     }
     return seen;
   }
+
+  // ============================================================
+  // 本机排行榜
+  //   目前存在 localStorage，将来接后端时把 load/submit 换成 fetch 即可，
+  //   排序和渲染的逻辑不用动。
+  // ============================================================
+  let board = [];      // [{ score, foods, obstacles, durationMs, at }]
+  let freshAt = 0;     // 刚结束那一局的 at，用于在榜上高亮它
+
+  /** 分高者前；同分则用时短者前；再同则先达成的在前 */
+  function cmpEntries(a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    if (a.durationMs !== b.durationMs) return a.durationMs - b.durationMs;
+    return a.at - b.at;
+  }
+
+  function loadBoard() {
+    try {
+      const arr = JSON.parse(store.read(BOARD_KEY, '[]'));
+      if (!Array.isArray(arr)) return [];
+      return arr.filter(e => e && typeof e.score === 'number');
+    } catch {
+      // 存档损坏就当空榜，绝不能让一段坏 JSON 把整个游戏拖垮
+      return [];
+    }
+  }
+
+  const saveBoard = () => store.write(BOARD_KEY, JSON.stringify(board));
+
+  /** 提交一局成绩，返回它在榜上的名次（1 起）；没进榜返回 0 */
+  function submitScore(entry) {
+    board.push(entry);
+    board.sort(cmpEntries);
+    board = board.slice(0, BOARD_SIZE);
+    saveBoard();
+
+    const idx = board.indexOf(entry);
+    freshAt = idx >= 0 ? entry.at : 0;
+    return idx + 1;   // 没进榜时 indexOf 返回 -1，正好得到 0
+  }
+
+  function renderBoard() {
+    boardEl.innerHTML = '';
+
+    if (!board.length) {
+      const li = document.createElement('li');
+      li.className = 'board-empty';
+      li.textContent = '还没有记录，玩一局吧';
+      boardEl.append(li);
+      return;
+    }
+
+    board.forEach((e, i) => {
+      const li = document.createElement('li');
+      li.className = 'board-row'
+        + (i === 0 ? ' top' : '')
+        + (e.at === freshAt ? ' fresh' : '');
+
+      const rank = document.createElement('span');
+      rank.className = 'rank';
+      rank.textContent = String(i + 1);
+
+      const score = document.createElement('span');
+      score.className = 'score';
+      score.textContent = `${e.score} 分`;
+
+      const meta = document.createElement('span');
+      meta.className = 'meta';
+      meta.textContent = `${e.foods} 颗 · ${(e.durationMs / 1000).toFixed(1)}s`;
+
+      li.append(rank, score, meta);
+      boardEl.append(li);
+    });
+  }
+
+  clearEl.addEventListener('click', () => {
+    if (!board.length) return;
+    if (!confirm(`确定清空本机排行榜的 ${board.length} 条记录？此操作无法撤销。`)) return;
+    board = [];
+    freshAt = 0;
+    saveBoard();
+    renderBoard();
+  });
+
+  // ============================================================
+  // 设置面板
+  // ============================================================
+  let pausedBySettings = false;   // 打开设置时如果正在游戏，关掉后要自动继续
+
+  function buildSpeedPicker() {
+    speedEl.innerHTML = '';
+
+    SPEED_PRESETS.forEach(s => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'seg';
+      btn.setAttribute('role', 'radio');
+      btn.setAttribute('aria-checked', String(s.id === speedPreset.id));
+      btn.textContent = s.name;
+      btn.addEventListener('click', () => setSpeed(s.id));
+      speedEl.append(btn);
+    });
+  }
+
+  function setSpeed(id) {
+    const next = SPEED_PRESETS.find(s => s.id === id);
+    if (!next || next === speedPreset) return;
+
+    speedPreset = next;
+    store.write(SPEED_KEY, id);
+    [...speedEl.children].forEach((el, i) => {
+      el.setAttribute('aria-checked', String(SPEED_PRESETS[i].id === id));
+    });
+
+    // 正在玩的话立刻生效，不用重开一局
+    if (state === 'playing') stepMs = speedOf(score);
+  }
+
+  function openSettings() {
+    settingsEl.hidden = false;
+    // 打开设置时自动暂停，免得调速度的时候蛇撞死
+    if (state === 'playing') { pausedBySettings = true; togglePause(); }
+  }
+
+  function closeSettings() {
+    settingsEl.hidden = true;
+    if (pausedBySettings) { pausedBySettings = false; togglePause(); }
+  }
+
+  gearEl.addEventListener('click', openSettings);
+
+  closeEl.addEventListener('click', closeSettings);
+
+  // 点面板外的遮罩也能关掉
+  settingsEl.addEventListener('click', e => {
+    if (e.target === settingsEl) closeSettings();
+  });
 
   // ============================================================
   // 皮肤切换
@@ -462,10 +874,12 @@
     dir       = { x: 1, y: 0 };
     dirQueue  = [];
     score     = 0;
-    stepMs    = BASE_STEP_MS;
+    stepMs    = speedPreset.base;
     acc       = 0;
     effects   = [];
     obstacles = [];
+    freshAt   = 0;              // 取消上一局的高亮
+    renderBoard();
     deathAt   = 0;
     startedAt = 0;
     sessionRecord = { score: 0, foods: 0, durationMs: 0, endedAt: null };
@@ -611,11 +1025,26 @@
       // TODO: 接入后端后，这里改为 POST /api/games 提交 sessionRecord
     }
 
+    // 提交到本机排行榜
+    let rank = 0;
+    if (score >= SCORE_MIN) {
+      rank = submitScore({
+        score,
+        foods:       sessionRecord.foods,
+        obstacles:   obstacles.length,
+        durationMs:  sessionRecord.durationMs,
+        at:          Date.now()
+      });
+      renderBoard();
+    }
+
     showOverlay({
       badge: isRecord && score > 0 ? '新纪录' : null,
       title,
       scoreText: String(score),
-      sub: `${sessionRecord.foods} 颗果实 · ${obstacles.length} 个障碍 · 用时 ${(sessionRecord.durationMs / 1000).toFixed(1)}s<br>${sub}`
+      sub: `${sessionRecord.foods} 颗果实 · ${obstacles.length} 个障碍 · 用时 ${(sessionRecord.durationMs / 1000).toFixed(1)}s`
+         + (rank ? `<br>本机排行榜第 <b>${rank}</b> 名` : '')
+         + `<br>${sub}`
     });
   }
 
@@ -641,6 +1070,13 @@
     if (e.repeat) return;
 
     const key = e.key;
+
+    // 设置面板打开时吃掉所有游戏按键：这时候按空格不该开始游戏，
+    // 按方向键也不该操纵蛇。只留 Esc 关闭。
+    if (!settingsEl.hidden) {
+      if (key === 'Escape') { e.preventDefault(); closeSettings(); }
+      return;
+    }
 
     // 阻止方向键滚动页面
     if (KEYS[key] || key === ' ' || key === 'Spacebar') e.preventDefault();
@@ -990,6 +1426,11 @@
   const savedSkin = SKINS.find(s => s.id === store.read(SKIN_KEY, ''));
   if (savedSkin) skin = savedSkin;
 
+  const savedSpeed = SPEED_PRESETS.find(s => s.id === store.read(SPEED_KEY, ''));
+  if (savedSpeed) speedPreset = savedSpeed;
+
+  board = loadBoard().sort(cmpEntries).slice(0, BOARD_SIZE);
+  buildSpeedPicker();
   buildSkinPicker();
   reset();
   requestAnimationFrame(loop);
